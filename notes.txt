@@ -1,0 +1,34 @@
+Euler benediction
+Oceanus / Bocca della Verita
+Five mysteries
+Mandelbrot Set
+
+Euler's equation
+e^(j.pi) = -1
+z = z^2 + c
+
+C code for basic Julia Set
+
+
+--------------------
+
+
+TO DO:
+
+Tattoos
+Vision system
+Printed card template(s)
+Printing code
+
+FRACTALs:
+
+Orbit switching zones
+
+
+---------------------
+
+			// Other functions:
+			//for (n=0 ; n<25 && cabs(z) < 4.0 ; ++n) z = z*z + c + dc; // classic
+			//for (n=0 ; n<25 && cabs(z) < 4.0 ; ++n) z = (z*z + c + dc)/(z*z - c + dc); // GOOD!!!
+			//for (n=0 ; n<25 && cabs(z) < 4.0 ; ++n) z = (z*z + c)/(z*z *c); // GOOD BLOBS / DUST!!!
+			
