@@ -21,6 +21,8 @@
 // Fractal image height and width
 #define H 1080
 #define W 1920
+//#define H 540
+//#define W 960
 
 // Fractal image pixels (ARGB)
 Uint32 p[H*W];
@@ -47,6 +49,8 @@ int main(int argc, char *argv[])
 	double scalingFactor = 0.005;
 	int invert_colour = 0;
 	int reverse_template = 0;
+	int colour_mode = 0, colour_modes = 4;
+	int function_mode = 0, function_modes = 3;
 
 	int exiting = 0;
 	char buffer[1024];
@@ -118,10 +122,12 @@ int main(int argc, char *argv[])
 				else if (event.key.keysym.sym == SDLK_DOWN) scalingFactor *= 1.1;
 				else if (event.key.keysym.sym == SDLK_ESCAPE) exiting = 1;
 				else if (event.key.keysym.sym == SDLK_p) print_card(1); // Print hard copy
-				else if (event.key.keysym.sym == SDLK_f) print_card(0); // Only print to file
+				else if (event.key.keysym.sym == SDLK_s) print_card(0); // Only print to file
 				else if (event.key.keysym.sym == SDLK_i) invert_colour = 1 - invert_colour;
 				else if (event.key.keysym.sym == SDLK_r) reverse_template = 1 - reverse_template;
 				else if (event.key.keysym.sym == SDLK_q) exiting = 1;
+				else if (event.key.keysym.sym == SDLK_c) {colour_mode = (colour_mode + 1) % colour_modes; printf("Colour mode: %d\n", colour_mode);}
+				else if (event.key.keysym.sym == SDLK_f) {function_mode = (function_mode + 1) % function_modes; printf("Function mode: %d\n", function_mode);}
 			}
 		}
 		
@@ -132,7 +138,7 @@ int main(int argc, char *argv[])
 		// Generate fractal image
 		for (y=0 ; y<H ; ++y) for (x=0 ; x<W ; ++x)
 		{
-			if ((SDL_GetTicks() - lastTime) > 3000) {x=W; y=H;}
+			if ((SDL_GetTicks() - lastTime) > 5000) {x=W; y=H;}
 			
 			z = scalingFactor * ((x-W/2) + I*(y-H/2));
 			
@@ -146,29 +152,60 @@ int main(int argc, char *argv[])
 				tn = ((txx >> 10)+(tyy >> 10))%2;
 				if ((tx!=txx || ty!=tyy) && n > 1)
 				{
-					if (reverse_template == 1 && template[tn][ty][tx] > 128) break;
-					if (reverse_template == 0 && template[tn][ty][tx] < 128) break;
+					if (reverse_template == 1 && template[tn][ty][tx] > 80) break;
+					if (reverse_template == 0 && template[tn][ty][tx] < 80) break;
 				}
 				
 				// Iterate z
-				zz = z*z;
-				//z = (zz + c1)/(zz);
-				z = (zz - c1)/(zz - c2);
+				if (function_mode == 0)
+				{
+					zz = z*z;
+					z = (zz + c1)/(zz);
+				}
+				else if (function_mode == 1)
+				{
+					zz = z*z;
+					z = (zz - c1)/(zz - c2);
+				}
+				else if (function_mode == 2)
+				{
+					zz = z*z;
+					z = (zz + c1)/csin(zz); // good like carpet
+				}
 			}
 			
 			// Colour mapping
 			a = 255;
-			r = g = b = 10*n;
+			r = g = b = 0;
 			
-			//double angle = 2.0*M_PI*n/25.0;
-			r = g = b = 255;
-			if ((n+0)%6 < 3) r = 10*n;
-			if ((n+2)%6 < 3) g = 10*n;
-			if ((n+4)%6 < 3) b = 10*n;
+			if (colour_mode == 0)
+			{
+				r = g = b = 10*n;
+				
+				//double angle = 2.0*M_PI*n/25.0;
+				r = g = b = 255;
+				if ((n+0)%6 < 3) r = 10*n;
+				if ((n+2)%6 < 3) g = 10*n;
+				if ((n+4)%6 < 3) b = 10*n;
+			}
+			else if (colour_mode == 1)
+			{
+				r = g = b = 255;
+				if (n%2) r = 10*n;
+				else g = 10*n;
+			}
+			else if (colour_mode == 2)
+			{
+				r = g = b = 255;
+				if (n%2) r = g = 10*n;
+				else b = 10*n;
+			}
+			else if (colour_mode == 3)
+			{
+				r = g = b = 10*n;
+			}
 			
-			//if (n%2) r = 10*n;
-			//else g = 10*n;
-			
+			// Invert colour if selected
 			if (invert_colour)
 			{
 				r = 255 - r;

@@ -32,3 +32,8 @@ Orbit switching zones
 			//for (n=0 ; n<25 && cabs(z) < 4.0 ; ++n) z = (z*z + c + dc)/(z*z - c + dc); // GOOD!!!
 			//for (n=0 ; n<25 && cabs(z) < 4.0 ; ++n) z = (z*z + c)/(z*z *c); // GOOD BLOBS / DUST!!!
 			
+---------------------
+
+video capture example ffmpeg commands:
+
+	https://trac.ffmpeg.org/wiki/Capture/Webcam
