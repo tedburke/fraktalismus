@@ -1,3 +1,20 @@
+
+TO DO:
+
+Tattoos
+Vision system
+Printed card template(s)
+Black cowl / daylight testing
+Safety and consent form
+
+
+FRACTALs:
+
+Orbit switching zones
+
+
+---------------------
+
 Euler benediction
 Oceanus / Bocca della Verita
 Five mysteries
@@ -13,20 +30,6 @@ C code for basic Julia Set
 --------------------
 
 
-TO DO:
-
-Tattoos
-Vision system
-Printed card template(s)
-Printing code
-
-FRACTALs:
-
-Orbit switching zones
-
-
----------------------
-
 			// Other functions:
 			//for (n=0 ; n<25 && cabs(z) < 4.0 ; ++n) z = z*z + c + dc; // classic
 			//for (n=0 ; n<25 && cabs(z) < 4.0 ; ++n) z = (z*z + c + dc)/(z*z - c + dc); // GOOD!!!
@@ -37,3 +40,15 @@ Orbit switching zones
 video capture example ffmpeg commands:
 
 	https://trac.ffmpeg.org/wiki/Capture/Webcam
+
+---------------------
+
+RHB printers:
+
+In office: hp 500 (too large to move)
+
+At home:
+Kodak printer is retired upstairs
+HP photosmart 7520
+
+----------------------

@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
 	int invert_colour = 0;
 	int reverse_template = 0;
 	int colour_mode = 0, colour_modes = 4;
-	int function_mode = 0, function_modes = 3;
+	int function_mode = 0, function_modes = 5;
 
 	int exiting = 0;
 	char buffer[1024];
@@ -171,6 +171,16 @@ int main(int argc, char *argv[])
 				{
 					zz = z*z;
 					z = (zz + c1)/csin(zz); // good like carpet
+				}
+				else if (function_mode == 3)
+				{
+					zz = z*z;
+					z = (zz + c1)/(zz*c1); // GOOD BLOBS / DUST!!!
+				}
+				else if (function_mode == 4)
+				{
+					zz = z*z;
+					z = (zz + c1); // classic
 				}
 			}
 			
