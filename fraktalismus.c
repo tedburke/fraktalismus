@@ -37,16 +37,21 @@ unsigned char template[2][TH][TW];
 #define PAGEWIDTH  595
 #define PAGEHEIGHT 842
 
-// Function prototype for creating a print
+// Function prototypes
 void print_card(int print_hard_copy);
+void generate_fractal(Uint32 *p, int w, int h, double px, complex double centre, int fmode, complex double c1, complex double c2, int cmode, int invert_colour, int reverse_template);
 
 int main(int argc, char *argv[])
 {
-	int m, n, x, y;
-	complex double c1, c2, z, zz, zzz;
-	Uint32 tx, ty, tn, txx, tyy;
-	unsigned char r, g, b, a;
-	double scalingFactor = 0.005;
+	//int m, n, x, y;
+	//complex double c1, c2, z, zz, zzz;
+	//Uint32 tx, ty, tn, txx, tyy;
+	//unsigned char r, g, b, a;
+	
+	int n, m;
+	complex double c1, c2;
+	
+	double scaling_factor = 0.005;
 	int invert_colour = 0;
 	int reverse_template = 0;
 	int colour_mode = 0, colour_modes = 4;
@@ -54,8 +59,6 @@ int main(int argc, char *argv[])
 
 	int exiting = 0;
 	char buffer[1024];
-		
-	c2 = -0.625 -0.4*I;
 	
 	// Load template images from file
 	FILE* f;
@@ -118,8 +121,8 @@ int main(int argc, char *argv[])
 		{
 			if (event.type == SDL_KEYDOWN)
 			{
-				if (event.key.keysym.sym == SDLK_UP) scalingFactor /= 1.1;
-				else if (event.key.keysym.sym == SDLK_DOWN) scalingFactor *= 1.1;
+				if (event.key.keysym.sym == SDLK_UP) scaling_factor /= 1.1;
+				else if (event.key.keysym.sym == SDLK_DOWN) scaling_factor *= 1.1;
 				else if (event.key.keysym.sym == SDLK_ESCAPE) exiting = 1;
 				else if (event.key.keysym.sym == SDLK_p) print_card(1); // Print hard copy
 				else if (event.key.keysym.sym == SDLK_s) print_card(0); // Only print to file
@@ -132,98 +135,13 @@ int main(int argc, char *argv[])
 		}
 		
 		// Get mouse position
+		int x, y;
 		SDL_GetMouseState(&x, &y);
-		c1 = scalingFactor * ((x - W/2) + (y - H/2)*I);
-
-		// Generate fractal image
-		for (y=0 ; y<H ; ++y) for (x=0 ; x<W ; ++x)
-		{
-			if ((SDL_GetTicks() - lastTime) > 5000) {x=W; y=H;}
-			
-			z = scalingFactor * ((x-W/2) + I*(y-H/2));
-			
-			for (n=0 ; n<25 ; ++n)
-			{
-				// Find template coordinates
-				txx = TW*(0.5 + 0.25*creal(z));
-				tx = txx & 1023;
-				tyy = TH*(0.5 + 0.25*cimag(z));
-				ty = tyy & 1023;
-				tn = ((txx >> 10)+(tyy >> 10))%2;
-				if ((tx!=txx || ty!=tyy) && n > 1)
-				{
-					if (reverse_template == 1 && template[tn][ty][tx] > 80) break;
-					if (reverse_template == 0 && template[tn][ty][tx] < 80) break;
-				}
-				
-				// Iterate z
-				if (function_mode == 0)
-				{
-					zz = z*z;
-					z = (zz + c1)/(zz);
-				}
-				else if (function_mode == 1)
-				{
-					zz = z*z;
-					z = (zz - c1)/(zz - c2);
-				}
-				else if (function_mode == 2)
-				{
-					zz = z*z;
-					z = (zz + c1)/csin(zz); // good like carpet
-				}
-				else if (function_mode == 3)
-				{
-					zz = z*z;
-					z = (zz + c1)/(zz*c1); // GOOD BLOBS / DUST!!!
-				}
-				else if (function_mode == 4)
-				{
-					zz = z*z;
-					z = (zz + c1); // classic
-				}
-			}
-			
-			// Colour mapping
-			a = 255;
-			r = g = b = 0;
-			
-			if (colour_mode == 0)
-			{
-				r = g = b = 10*n;
-				
-				//double angle = 2.0*M_PI*n/25.0;
-				r = g = b = 255;
-				if ((n+0)%6 < 3) r = 10*n;
-				if ((n+2)%6 < 3) g = 10*n;
-				if ((n+4)%6 < 3) b = 10*n;
-			}
-			else if (colour_mode == 1)
-			{
-				r = g = b = 255;
-				if (n%2) r = 10*n;
-				else g = 10*n;
-			}
-			else if (colour_mode == 2)
-			{
-				r = g = b = 255;
-				if (n%2) r = g = 10*n;
-				else b = 10*n;
-			}
-			else if (colour_mode == 3)
-			{
-				r = g = b = 10*n;
-			}
-			
-			// Invert colour if selected
-			if (invert_colour)
-			{
-				r = 255 - r;
-				g = 255 - g;
-				b = 255 - b;
-			}
-			p[y*W+x] = (a<<24)+(r<<16)+(g<<8)+b;
-		}
+		c1 = scaling_factor * ((x - W/2) + (y - H/2)*I);
+		c2 = -0.625 - 0.4*I;
+		
+		// Generate fractal
+		generate_fractal(p, W, H, scaling_factor, 0, function_mode, c1, c2, colour_mode, invert_colour, reverse_template);
 		
 		// Draw fractal image
 		SDL_UpdateTexture(sdlTexture, NULL, p, W * sizeof(Uint32));
@@ -231,7 +149,7 @@ int main(int argc, char *argv[])
 		SDL_RenderCopy(sdlRenderer, sdlTexture, NULL, NULL);
 		SDL_RenderPresent(sdlRenderer);
 		
-		// Mesaure frame time
+		// Measure frame time
 		currentTime = SDL_GetTicks();
 		printf("Frame time: %d ms\n", currentTime - lastTime);
 		lastTime = currentTime;
@@ -246,6 +164,108 @@ int main(int argc, char *argv[])
 	SDL_Quit();
 	
 	return 0;
+}
+
+void generate_fractal(Uint32 *p, int w, int h, double px, complex double centre, int fmode, complex double c1, complex double c2, int cmode, int invert_colour, int reverse_template)
+{
+	int n, x, y;
+	complex double z, zz; //, zzz;
+	Uint32 tx, ty, tn, txx, tyy;
+	unsigned char r, g, b, a;
+
+	Uint32 start_time, timeout = 5000;
+	start_time = SDL_GetTicks();
+	
+	// Generate fractal image
+	for (y=0 ; y<=H/2 ; ++y) for (x=0 ; x<W ; ++x)
+	{
+		if ((SDL_GetTicks() - start_time) > timeout) return; //{x=W; y=H;}
+		
+		z = px * ((x-W/2) + I*(y-H/2));
+		
+		for (n=0 ; n<25 ; ++n)
+		{
+			// Find template coordinates
+			txx = TW*(0.5 + 0.25*creal(z));
+			tx = txx & 1023;
+			tyy = TH*(0.5 + 0.25*cimag(z));
+			ty = tyy & 1023;
+			tn = ((txx >> 10)+(tyy >> 10))%2;
+			if ((tx!=txx || ty!=tyy) && n > 1)
+			{
+				if (reverse_template == 1 && template[tn][ty][tx] > 80) break;
+				if (reverse_template == 0 && template[tn][ty][tx] < 80) break;
+			}
+			
+			// Iterate z
+			if (fmode == 0)
+			{
+				zz = z*z;
+				z = (zz + c1)/(zz);
+			}
+			else if (fmode == 1)
+			{
+				zz = z*z;
+				z = (zz - c1)/(zz - c2);
+			}
+			else if (fmode == 2)
+			{
+				zz = z*z;
+				z = (zz + c1)/csin(zz); // good like carpet
+			}
+			else if (fmode == 3)
+			{
+				zz = z*z;
+				z = (zz + c1)/(zz*c1); // GOOD BLOBS / DUST!!!
+			}
+			else if (fmode == 4)
+			{
+				zz = z*z;
+				z = (zz + c1); // classic
+			}
+		}
+		
+		// Colour mapping
+		a = 255;
+		r = g = b = 0;
+		
+		if (cmode == 0)
+		{
+			r = g = b = 10*n;
+			
+			//double angle = 2.0*M_PI*n/25.0;
+			r = g = b = 255;
+			if ((n+0)%6 < 3) r = 10*n;
+			if ((n+2)%6 < 3) g = 10*n;
+			if ((n+4)%6 < 3) b = 10*n;
+		}
+		else if (cmode == 1)
+		{
+			r = g = b = 255;
+			if (n%2) r = 10*n;
+			else g = 10*n;
+		}
+		else if (cmode == 2)
+		{
+			r = g = b = 255;
+			if (n%2) r = g = 10*n;
+			else b = 10*n;
+		}
+		else if (cmode == 3)
+		{
+			r = g = b = 10*n;
+		}
+		
+		// Invert colour if selected
+		if (invert_colour)
+		{
+			r = 255 - r;
+			g = 255 - g;
+			b = 255 - b;
+		}
+		p[y*W+x] = (a<<24)+(r<<16)+(g<<8)+b;
+		if (y>0) p[(H-y)*W+(W-1-x)] = p[y*W+x];
+	}
 }
 
 void print_card(int print_hard_copy)
