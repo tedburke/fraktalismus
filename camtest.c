@@ -19,12 +19,11 @@
 //Uint32 p[H*W/2];
 unsigned char p[H][W][2];
 unsigned char q[H][W][2];
-unsigned char h[H][W][3];
+unsigned char h[H][W][4];
 
 int histogram[3][256] = {0};
 int hist_max = 0;
 void rebuild_histogram();
-int plot_histogram = 0;
 
 int left=W/4, right=3*W/4, top=H/4, bottom=3*H/4;
 
@@ -41,7 +40,7 @@ int main()
 	SDL_RenderPresent(sdlRenderer);
 	
 	SDL_Texture *video_texture = SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_YUY2, SDL_TEXTUREACCESS_STREAMING, W, H);
-	SDL_Texture *histogram_texture = SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_RGB888, SDL_TEXTUREACCESS_STREAMING, W, H);
+	SDL_Texture *histogram_texture = SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, W, H);
 	
 	SDL_Event event;
 	
@@ -104,13 +103,7 @@ int main()
             return 1;
         }
         
-        // Rebuild histogram if analysis region has just been updated
-        if (plot_histogram)
-        {
-			plot_histogram = 0;  // reset flag
-			rebuild_histogram();
-		}
-		
+        // Rebuild histogram
 		rebuild_histogram();
         
         // Process this frame
@@ -142,7 +135,7 @@ int main()
 		
 		// Draw frame
 		SDL_UpdateTexture(video_texture, NULL, p, W*2);
-		SDL_UpdateTexture(histogram_texture, NULL, h, W*3);
+		SDL_UpdateTexture(histogram_texture, NULL, h, W*4);
 		SDL_RenderClear(sdlRenderer);
 		SDL_RenderCopy(sdlRenderer, video_texture, NULL, &video_rect);
 		SDL_RenderCopy(sdlRenderer, histogram_texture, NULL, &histogram_rect);
@@ -170,16 +163,16 @@ void rebuild_histogram()
 {
 	int n, m, x, y;
 	
-	// Reset histogram data
-	hist_max = 0;
-	for (n=0 ; n<3 ; ++n) for (m=0 ; m<256 ; ++m) histogram[n][m] = 0;
-	
+	// Regenerate histogram data
+	for (n=0 ; n<3 ; ++n) for (m=0 ; m<256 ; ++m) histogram[n][m] = 0;	
 	for (y=top ; y<bottom ; ++y) for (x=left ; x<right ; ++x) 
 	{
 		histogram[0][p[y][x][0]]++;
 		histogram[1+(x%2)][p[y][x][1]]++;
 	}
 	
+	// Find max value in any histogram
+	hist_max = 0;
 	for (m=0 ; m<256 ; ++m)
 	{
 		if (histogram[0][m] > hist_max) hist_max = histogram[0][m];
@@ -187,11 +180,15 @@ void rebuild_histogram()
 		if (histogram[2][m] > hist_max) hist_max = histogram[2][m];
 	}
 	
-	memset(h,0,H*W*3);
+	// Clear histogram canvas
+	memset(h,255,H*W*4);
 	
+	// Redraw histogram on canvas
 	for (m=0 ; m<256 ; ++m)
 	{
-		for (n=0 ; n<((128*histogram[0][m])/hist_max) ; ++n) h[128-n][m][0] = h[128-n][m][1] = h[128-n][m][2] = 255;
+		for (n=150-((120*histogram[0][m])/hist_max) ; n<150 ; ++n) h[n][m][1] = h[n][m][2] = h[n][m][3] = 0;
+		for (n=300-((120*histogram[1][m])/hist_max) ; n<300 ; ++n) h[n][m][2] = h[n][m][3] = 0;
+		for (n=450-((120*histogram[2][m])/hist_max) ; n<450 ; ++n) h[n][m][1] = h[n][m][2] = 0;
 	}
 }
 
