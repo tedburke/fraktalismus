@@ -106,13 +106,48 @@ int main()
         // Rebuild histogram
 		rebuild_histogram();
         
+        // Scan edge pixels to identify background colour range
+        int Y, U, V;
+        int Ymin=255, Ymax=0;
+        int Umin=255, Umax=0;
+        int Vmin=255, Vmax=0;
+        
+        for (y=top ; y<bottom ; ++y) for (x=left ; x<right ; ++x)
+        {
+			if (x==left+2 && y>=top+2 && y<bottom-2) x = right-2;
+			
+			Y = p[y][x][0];
+			U = (x%2) ? p[y][x-1][1] : p[y][x][1];
+			V = (x%2) ? p[y][x][1] : p[y][x+1][1];
+			
+			if (Y<Ymin) Ymin = Y; if (Y>Ymax) Ymax = Y;
+			if (U<Umin) Umin = U; if (U>Umax) Umax = U;
+			if (V<Vmin) Vmin = V; if (V>Vmax) Vmax = V;
+		}
+
+		int tol = 20;
+        Ymin-=tol; Ymax+=tol;
+        Umin-=tol; Umax+=tol;
+        Vmin-=tol; Vmax+=tol;
+		
         // Process this frame
         for (y=top ; y<bottom ; ++y) for (x=left ; x<right ; ++x)
         {
-            if (abs(p[y][x][1] - 127) < 10 && p[y][x][0] > 100)
+			Y = p[y][x][0];
+			U = (x%2) ? p[y][x-1][1] : p[y][x][1];
+			V = (x%2) ? p[y][x][1] : p[y][x+1][1];
+			
+            //if (abs(p[y][x][1] - 127) < 10 && p[y][x][0] > 100)
+            
+            if (Y>Ymin && Y<Ymax && U>Umin && U<Umax && V>Vmin && V<Vmax)
             {
 				p[y][x][0] = 255;
 				p[y][x][1] = 255;
+			}
+			else
+            {
+				p[y][x][0] = 0;
+				p[y][x][1] = 0;
 			}
         }
         
