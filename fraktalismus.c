@@ -33,16 +33,19 @@ Uint32 p[H*W];
 // Two simple drawn shapes that seed the fractal creation
 #define TH 1024
 #define TW 1024
-unsigned char template[2][TH][TW];
+unsigned char template[2][TH][TW][4] = {0}; // ARGB pixels
 
 // Function prototypes
 void print_card(int print_hard_copy);
+
 void generate_fractal (
 		Uint32 *p, int w, int h, double px, complex double centre,
 		complex double a, complex double b, complex double c, complex double d,
 		int cmode, int invert_colour, int reverse_template );
-void update_template(int n, SDL_Renderer *sdlRenderer);
 
+void update_template(SDL_Renderer *sdlRenderer);
+
+// Main function
 int main(int argc, char *argv[])
 {
 	int n, m;
@@ -51,29 +54,32 @@ int main(int argc, char *argv[])
 	double scaling_factor = 0.005;
 	int invert_colour = 0;
 	int reverse_template = 0;
-	int colour_mode = 0, colour_modes = 4;
+	int colour_mode = 0, colour_modes = 5;
 	int function_mode = 0, function_modes = 4;
 
 	int exiting = 0;
 	char buffer[1024];
 	
 	// Load template images from file
-	FILE* f;
-	for (n=0 ; n<2 ; ++n)
+	if (argc > 1)
 	{
-		f = fopen(argv[n+1], "r");
-		if (f == NULL)
+		FILE* f;
+		for (n=0 ; n<2 ; ++n)
 		{
-			fprintf(stderr, "Error opening template image file\n");
-			exit(1);
+			f = fopen(argv[n+1], "r");
+			if (f == NULL)
+			{
+				fprintf(stderr, "Error opening template image file\n");
+				exit(1);
+			}
+			for (m=0 ; m<3 ; ++m)
+			{
+				fscanf(f, "%[^\n]\n", buffer);
+				if (buffer[0]=='#') m--;
+			}
+			fread(template[n], TW, TH, f);
+			fclose(f);
 		}
-		for (m=0 ; m<3 ; ++m)
-		{
-			fscanf(f, "%[^\n]\n", buffer);
-			if (buffer[0]=='#') m--;
-		}
-		fread(template[n], TW, TH, f);
-		fclose(f);
 	}
 	
 	// Initialise SDL
@@ -128,8 +134,7 @@ int main(int argc, char *argv[])
 				else if (event.key.keysym.sym == SDLK_q) exiting = 1;
 				else if (event.key.keysym.sym == SDLK_c) {colour_mode = (colour_mode + 1) % colour_modes; printf("Colour mode: %d\n", colour_mode);}
 				else if (event.key.keysym.sym == SDLK_f) {function_mode = (function_mode + 1) % function_modes; printf("Function mode: %d\n", function_mode);}
-				else if (event.key.keysym.sym == SDLK_1) update_template(0, sdlRenderer);
-				else if (event.key.keysym.sym == SDLK_2) update_template(1, sdlRenderer);
+				else if (event.key.keysym.sym == SDLK_u) update_template(sdlRenderer);
 			}
 		}
 		
@@ -217,8 +222,8 @@ void generate_fractal(Uint32 *p, int w, int h, double px, complex double centre,
 			tn = ((txx >> 10)+(tyy >> 10))%2;
 			if ((tx!=txx || ty!=tyy) && n > 1)
 			{
-				if (reverse_template == 1 && template[tn][ty][tx] > 80) break;
-				if (reverse_template == 0 && template[tn][ty][tx] < 80) break;
+				if (reverse_template == 1 && template[tn][ty][tx][3] > 127) break;
+				if (reverse_template == 0 && template[tn][ty][tx][3] < 127) break;
 			}
 			
 			// Iterate z
@@ -253,6 +258,12 @@ void generate_fractal(Uint32 *p, int w, int h, double px, complex double centre,
 		{
 			red = green = blue = 10*n;
 		}
+		else if (cmode == 4)
+		{
+			red   = template[tn][ty][tx][2] + (n/25.0)*(255-template[tn][ty][tx][2]);
+			green = template[tn][ty][tx][1] + (n/25.0)*(255-template[tn][ty][tx][1]);
+			blue  = template[tn][ty][tx][0] + (n/25.0)*(255-template[tn][ty][tx][0]);
+		}
 		
 		// Invert colour if selected
 		if (invert_colour)
@@ -261,7 +272,10 @@ void generate_fractal(Uint32 *p, int w, int h, double px, complex double centre,
 			green = 255 - green;
 			blue = 255 - blue;
 		}
+
 		p[y*W+x] = (alpha<<24)+(red<<16)+(green<<8)+blue;
+		p[y*W+x] = (alpha<<24)+(red<<16)+(green<<8)+blue;
+		
 		if (y>0) p[(H-y)*W+(W-1-x)] = p[y*W+x];
 	}
 }
@@ -355,7 +369,7 @@ void print_card(int print_hard_copy)
 #define vh 720
 unsigned char vp[vh][vw][2];
 
-void update_template(int n, SDL_Renderer *sdlRenderer)
+void update_template(SDL_Renderer *sdlRenderer)
 {
 	int mouse_x=0, mouse_y=0;
 	int x1, y1, x2, y2, left, right, top, bottom;
@@ -363,9 +377,13 @@ void update_template(int n, SDL_Renderer *sdlRenderer)
 	x2 = right = 3*vw/4;
 	y1 = top = vh/4;
 	y2 = bottom = 3*vh/4;
+	
+	static int tol = 20; // colour matching tolerance
 
+	int n = -1; // number of template to update (will be set to 0 or 1 if key is pressed)
     int exiting_video=0;
-    int threshold=127, byte_count, x, y;
+    int byte_count;
+    int vx, vy, tx, ty;
 
 	// Open SDL window for video
 	SDL_SetRenderDrawColor(sdlRenderer, 0, 0, 0, 255);
@@ -397,20 +415,12 @@ void update_template(int n, SDL_Renderer *sdlRenderer)
 		{
 			if (event.type == SDL_KEYDOWN)
 			{
-				if (event.key.keysym.sym == SDLK_UP) threshold += 5;
-				else if (event.key.keysym.sym == SDLK_DOWN) threshold -= 5;
+				if (event.key.keysym.sym == SDLK_UP) tol += 5;
+				else if (event.key.keysym.sym == SDLK_DOWN) tol -= 5;
 				else if (event.key.keysym.sym == SDLK_ESCAPE) exiting_video = 1;
 				else if (event.key.keysym.sym == SDLK_q) exiting_video = 1;
-				else if (event.key.keysym.sym == SDLK_s)
-				{
-					// Write last frame to file
-					// NEEDS ADJUSTMENT FOR YUY2 rather than RGB!!!
-					fprintf(stderr, "Writing frame to PPM file\n");
-					FILE *f = fopen("snapshot.ppm", "w");
-					fprintf(f, "P6\n%d %d\n255\n", W, H);
-					fwrite(p, 3*640, 480, f);
-					fclose(f);
-				}
+				else if (event.key.keysym.sym == SDLK_1) n = 0;
+				else if (event.key.keysym.sym == SDLK_2) n = 1;
 			}
 			else if (event.type == SDL_MOUSEBUTTONDOWN)
 			{
@@ -445,18 +455,18 @@ void update_template(int n, SDL_Renderer *sdlRenderer)
         }
         
         // Scan edge pixels to identify background colour range
-        int Y, U, V;
+        int Y, U, V, red, green, blue;
         int Ymin=255, Ymax=0;
         int Umin=255, Umax=0;
         int Vmin=255, Vmax=0;
         
-        for (y=top ; y<bottom ; ++y) for (x=left ; x<right ; ++x)
+        for (vy=top ; vy<bottom ; ++vy) for (vx=left ; vx<right ; ++vx)
         {
-			if (x==left+2 && y>=top+2 && y<bottom-2) x = right-2;
+			if (vx==left+2 && vy>=top+2 && vy<bottom-2) vx = right-2;
 			
-			Y = vp[y][x][0];
-			U = (x%2) ? vp[y][x-1][1] : vp[y][x][1];
-			V = (x%2) ? vp[y][x][1] : vp[y][x+1][1];
+			Y = vp[vy][vx][0];
+			U = (vx%2) ? vp[vy][vx-1][1] : vp[vy][vx][1];
+			V = (vx%2) ? vp[vy][vx][1] : vp[vy][vx+1][1];
 			
 			if (Y<Ymin) Ymin = Y;
 			if (Y>Ymax) Ymax = Y;
@@ -466,55 +476,95 @@ void update_template(int n, SDL_Renderer *sdlRenderer)
 			if (V>Vmax) Vmax = V;
 		}
 
-		int tol = 20;
         Ymin-=tol; Ymax+=tol;
         Umin-=tol; Umax+=tol;
         Vmin-=tol; Vmax+=tol;
 		
-        // Process this frame
-        for (y=top ; y<bottom ; ++y) for (x=left ; x<right ; ++x)
+        // Update template if "1" or "2" was pressed
+        if (n>=0)
         {
-			Y = vp[y][x][0];
-			U = (x%2) ? vp[y][x-1][1] : vp[y][x][1];
-			V = (x%2) ? vp[y][x][1] : vp[y][x+1][1];
+			fprintf(stderr, "Updating template %d\n", n);
+			
+			for (ty=0 ; ty<TH ; ++ty) for (tx=0 ; tx<TW ; ++tx)
+			{
+				vx = left + (tx*1.0/TW)*(right-left);
+				vy = top + (ty*1.0/TH)*(bottom-top);
+				
+				Y = vp[vy][vx][0];
+				U = (vx%2) ? vp[vy][vx-1][1] : vp[vy][vx][1];
+				V = (vx%2) ? vp[vy][vx][1] : vp[vy][vx+1][1];
+				
+				blue = 1.164*(Y-16) + 2.018*(U-128);
+				if (blue < 0) blue = 0;
+				if (blue > 255) blue = 255;
+				green = 1.164*(Y-16) - 0.813*(V-128) - 0.391*(U-128);
+				if (green < 0) green = 0;
+				if (green > 255) green = 255;
+				red = 1.164*(Y-16) + 1.596*(V-128);
+				if (red < 0) red = 0;
+				if (red > 255) red = 255;
+				
+				template[n][ty][tx][2] = red;
+				template[n][ty][tx][1] = green;
+				template[n][ty][tx][0] = blue;
+				
+				if (Y>Ymin && Y<Ymax && U>Umin && U<Umax && V>Vmin && V<Vmax)
+				{
+					template[n][ty][tx][3] = 255;
+				}
+				else
+				{
+					template[n][ty][tx][3] = 0;
+				}
+			}
+				
+			n = -1; // reset flag
+		}
+		
+        // Process this frame
+        for (vy=top ; vy<bottom ; ++vy) for (vx=left ; vx<right ; ++vx)
+        {
+			Y = vp[vy][vx][0];
+			U = (vx%2) ? vp[vy][vx-1][1] : vp[vy][vx][1];
+			V = (vx%2) ? vp[vy][vx][1] : vp[vy][vx+1][1];
 			
             if (Y>Ymin && Y<Ymax && U>Umin && U<Umax && V>Vmin && V<Vmax)
             {
-				vp[y][x][0] = 255;
-				vp[y][x][1] = 255;
+				vp[vy][vx][0] = 255;
+				vp[vy][vx][1] = 255;
 			}
 			else
             {
-				vp[y][x][0] = 0;
-				vp[y][x][1] = 0;
+				vp[vy][vx][0] = 0;
+				vp[vy][vx][1] = 0;
 			}
         }
         
         // Draw mouse crosshairs and boundaries of analysis region
-        for (y=0 ; y<vh ; ++y)
+        for (vy=0 ; vy<vh ; ++vy)
         {
 			// crosshairs
-			vp[y][mouse_x][0] = 0;
-			vp[y][mouse_x][1] = 127;
+			vp[vy][mouse_x][0] = 0;
+			vp[vy][mouse_x][1] = 127;
 			
 			// left and right boundaries of analysis region
-			vp[y][left][0] = 255;
-			vp[y][left][1] = 127;
-			vp[y][right][0] = 255;
-			vp[y][right][1] = 127;
+			vp[vy][left][0] = 255;
+			vp[vy][left][1] = 127;
+			vp[vy][right][0] = 255;
+			vp[vy][right][1] = 127;
 		}
 		
-        for (x=0 ; x<vw ; ++x)
+        for (vx=0 ; vx<vw ; ++vx)
         {
 			// crosshairs
-			vp[mouse_y][x][0] = 0;
-			vp[mouse_y][x][1] = 127;
+			vp[mouse_y][vx][0] = 0;
+			vp[mouse_y][vx][1] = 127;
 			
 			// top and bottom boundaries of analysis region
-			vp[top][x][0] = 255;
-			vp[top][x][1] = 127;
-			vp[bottom][x][0] = 255;
-			vp[bottom][x][1] = 127;
+			vp[top][vx][0] = 255;
+			vp[top][vx][1] = 127;
+			vp[bottom][vx][0] = 255;
+			vp[bottom][vx][1] = 127;
 		}
 		
 		// Draw frame
