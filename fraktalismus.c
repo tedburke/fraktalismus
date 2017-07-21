@@ -222,8 +222,8 @@ void generate_fractal(Uint32 *p, int w, int h, double px, complex double centre,
 			tn = ((txx >> 10)+(tyy >> 10))%2;
 			if ((tx!=txx || ty!=tyy) && n > 1)
 			{
-				if (reverse_template == 1 && template[tn][ty][tx][3] > 127) break;
-				if (reverse_template == 0 && template[tn][ty][tx][3] < 127) break;
+				if (reverse_template == 1 && template[tn][ty][tx][0] > 127) break;
+				if (reverse_template == 0 && template[tn][ty][tx][0] < 127) break;
 			}
 			
 			// Iterate z
@@ -260,9 +260,9 @@ void generate_fractal(Uint32 *p, int w, int h, double px, complex double centre,
 		}
 		else if (cmode == 4)
 		{
-			red   = template[tn][ty][tx][2] + (n/25.0)*(255-template[tn][ty][tx][2]);
-			green = template[tn][ty][tx][1] + (n/25.0)*(255-template[tn][ty][tx][1]);
-			blue  = template[tn][ty][tx][0] + (n/25.0)*(255-template[tn][ty][tx][0]);
+			red   = template[tn][ty][tx][1] + (n/25.0)*(255-template[tn][ty][tx][2]);
+			green = template[tn][ty][tx][2] + (n/25.0)*(255-template[tn][ty][tx][1]);
+			blue  = template[tn][ty][tx][3] + (n/25.0)*(255-template[tn][ty][tx][0]);
 		}
 		
 		// Invert colour if selected
@@ -347,10 +347,43 @@ void print_card(int print_hard_copy)
 	cairo_set_source_surface (cr, rear_surface, 0, 0);
 	cairo_paint (cr);
 	cairo_surface_destroy(rear_surface);
+	
+	// Draw templates on back of card
+	int template_size = 60;	
+	
+	// Template 0
+	cairo_surface_t *template_surface0;	
+	template_surface0 = cairo_image_surface_create (CAIRO_FORMAT_ARGB32, TW, TH);
+	rowstride = cairo_image_surface_get_stride (template_surface0);
+	surface_pixels = cairo_image_surface_get_data (template_surface0);
+	for (y=0 ; y<TH ; ++y) memcpy(surface_pixels+(y*rowstride), &(template[0][y][0][0]), TW*4);
+	cairo_surface_mark_dirty (template_surface0);
+	cairo_identity_matrix (cr);
+	cairo_reset_clip (cr);
+	cairo_translate(cr, page_margin, page_height-page_margin-template_size);
+	cairo_scale(cr, template_size*1.0/TW, template_size*1.0/TH);
+	cairo_set_source_surface (cr, template_surface0, 0, 0);
+	cairo_paint (cr);
+	
+	// Template 1
+	cairo_surface_t *template_surface1;	
+	template_surface1 = cairo_image_surface_create (CAIRO_FORMAT_ARGB32, TW, TH);
+	rowstride = cairo_image_surface_get_stride (template_surface1);
+	surface_pixels = cairo_image_surface_get_data (template_surface1);
+	for (y=0 ; y<TH ; ++y) memcpy(surface_pixels+(y*rowstride), &(template[1][y][0][0]), TW*4);
+	cairo_surface_mark_dirty (template_surface1);
+	cairo_identity_matrix (cr);
+	cairo_reset_clip (cr);
+	cairo_translate(cr, page_width-page_margin-template_size, page_height-page_margin-template_size);
+	cairo_scale(cr, template_size*1.0/TW, template_size*1.0/TH);
+	cairo_set_source_surface (cr, template_surface1, 0, 0);
+	cairo_paint (cr);
 
 	// Finish drawing and destroy Cairo surface and context
 	cairo_show_page(cr);
 	cairo_destroy(cr);
+	cairo_surface_destroy(template_surface0);
+	cairo_surface_destroy(template_surface1);
 	cairo_surface_destroy(fractal_surface);
 	cairo_surface_flush(ps_surface);
 	cairo_surface_destroy(ps_surface);
@@ -504,17 +537,17 @@ void update_template(SDL_Renderer *sdlRenderer)
 				if (red < 0) red = 0;
 				if (red > 255) red = 255;
 				
-				template[n][ty][tx][2] = red;
-				template[n][ty][tx][1] = green;
-				template[n][ty][tx][0] = blue;
+				template[n][ty][tx][1] = red;
+				template[n][ty][tx][2] = green;
+				template[n][ty][tx][3] = blue;
 				
 				if (Y>Ymin && Y<Ymax && U>Umin && U<Umax && V>Vmin && V<Vmax)
 				{
-					template[n][ty][tx][3] = 255;
+					template[n][ty][tx][0] = 255;
 				}
 				else
 				{
-					template[n][ty][tx][3] = 0;
+					template[n][ty][tx][0] = 0;
 				}
 			}
 				
