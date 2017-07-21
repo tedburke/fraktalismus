@@ -9,6 +9,10 @@
 //
 //   apt install libsdl2-dev libcups2-dev libcairo2-dev
 //
+// Additional notes:
+//
+//   apt install pstoedit (for LaTeX rendering in Inkscape)
+//
 
 #include <stdio.h>      // For file i/o, debug printing, etc.
 #include <complex.h>    // Complex arithmetic for fractal generation
@@ -21,8 +25,6 @@
 // Fractal image height and width
 #define H 1080
 #define W 1920
-//#define H 540
-//#define W 960
 
 // Fractal image pixels (ARGB)
 Uint32 p[H*W];
@@ -33,29 +35,23 @@ Uint32 p[H*W];
 #define TW 1024
 unsigned char template[2][TH][TW];
 
-// A4 width, height in points, from GhostView manual:
-#define PAGEWIDTH  595
-#define PAGEHEIGHT 842
-
 // Function prototypes
 void print_card(int print_hard_copy);
-void generate_fractal(Uint32 *p, int w, int h, double px, complex double centre, int fmode, complex double c1, complex double c2, int cmode, int invert_colour, int reverse_template);
+void generate_fractal (
+		Uint32 *p, int w, int h, double px, complex double centre,
+		complex double a, complex double b, complex double c, complex double d,
+		int cmode, int invert_colour, int reverse_template );
 
 int main(int argc, char *argv[])
 {
-	//int m, n, x, y;
-	//complex double c1, c2, z, zz, zzz;
-	//Uint32 tx, ty, tn, txx, tyy;
-	//unsigned char r, g, b, a;
-	
 	int n, m;
-	complex double c1, c2;
+	complex double a, b, c, d;
 	
 	double scaling_factor = 0.005;
 	int invert_colour = 0;
 	int reverse_template = 0;
 	int colour_mode = 0, colour_modes = 4;
-	int function_mode = 0, function_modes = 5;
+	int function_mode = 0, function_modes = 4;
 
 	int exiting = 0;
 	char buffer[1024];
@@ -137,11 +133,36 @@ int main(int argc, char *argv[])
 		// Get mouse position
 		int x, y;
 		SDL_GetMouseState(&x, &y);
-		c1 = scaling_factor * ((x - W/2) + (y - H/2)*I);
-		c2 = -0.625 - 0.4*I;
+		a = b = c = d = 1;
+		
+		if (function_mode == 0)
+		{
+			a = 1; b = 1;
+			c = scaling_factor * ((x - W/2) + (y - H/2)*I);
+			d = 0;
+		}
+		else if (function_mode == 1)
+		{
+			a = 1; b = 1;
+			c = scaling_factor * ((x - W/2) + (y - H/2)*I);
+			d = -0.625 - 0.4*I;
+		}
+		else if (function_mode == 2)
+		{
+			a = 1;
+			b = c = scaling_factor * ((x - W/2) + (y - H/2)*I);
+			d = 0;
+		}
+		else if (function_mode == 3)
+		{
+			a = 1;
+			b = 0;
+			c = scaling_factor * ((x - W/2) + (y - H/2)*I);
+			d = 1;
+		}
 		
 		// Generate fractal
-		generate_fractal(p, W, H, scaling_factor, 0, function_mode, c1, c2, colour_mode, invert_colour, reverse_template);
+		generate_fractal(p, W, H, scaling_factor, 0, a, b, c, d, colour_mode, invert_colour, reverse_template);
 		
 		// Draw fractal image
 		SDL_UpdateTexture(sdlTexture, NULL, p, W * sizeof(Uint32));
@@ -166,12 +187,12 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-void generate_fractal(Uint32 *p, int w, int h, double px, complex double centre, int fmode, complex double c1, complex double c2, int cmode, int invert_colour, int reverse_template)
+void generate_fractal(Uint32 *p, int w, int h, double px, complex double centre, complex double a, complex double b, complex double c, complex double d, int cmode, int invert_colour, int reverse_template)
 {
 	int n, x, y;
 	complex double z, zz; //, zzz;
 	Uint32 tx, ty, tn, txx, tyy;
-	unsigned char r, g, b, a;
+	unsigned char red, green, blue, alpha;
 
 	Uint32 start_time, timeout = 5000;
 	start_time = SDL_GetTicks();
@@ -179,9 +200,9 @@ void generate_fractal(Uint32 *p, int w, int h, double px, complex double centre,
 	// Generate fractal image
 	for (y=0 ; y<=H/2 ; ++y) for (x=0 ; x<W ; ++x)
 	{
-		if ((SDL_GetTicks() - start_time) > timeout) return; //{x=W; y=H;}
+		if ((SDL_GetTicks() - start_time) > timeout) return;
 		
-		z = px * ((x-W/2) + I*(y-H/2));
+		z = px * ((x-w/2) + I*(y-h/2));
 		
 		for (n=0 ; n<25 ; ++n)
 		{
@@ -198,72 +219,46 @@ void generate_fractal(Uint32 *p, int w, int h, double px, complex double centre,
 			}
 			
 			// Iterate z
-			if (fmode == 0)
-			{
-				zz = z*z;
-				z = (zz + c1)/(zz);
-			}
-			else if (fmode == 1)
-			{
-				zz = z*z;
-				z = (zz - c1)/(zz - c2);
-			}
-			else if (fmode == 2)
-			{
-				zz = z*z;
-				z = (zz + c1)/csin(zz); // good like carpet
-			}
-			else if (fmode == 3)
-			{
-				zz = z*z;
-				z = (zz + c1)/(zz*c1); // GOOD BLOBS / DUST!!!
-			}
-			else if (fmode == 4)
-			{
-				zz = z*z;
-				z = (zz + c1); // classic
-			}
+			zz = z*z;
+			z = (a*zz + c)/(b*zz + d);
 		}
 		
 		// Colour mapping
-		a = 255;
-		r = g = b = 0;
+		alpha = 255;
+		red = green = blue = 0;
 		
 		if (cmode == 0)
 		{
-			r = g = b = 10*n;
-			
-			//double angle = 2.0*M_PI*n/25.0;
-			r = g = b = 255;
-			if ((n+0)%6 < 3) r = 10*n;
-			if ((n+2)%6 < 3) g = 10*n;
-			if ((n+4)%6 < 3) b = 10*n;
+			red = green = blue = 255;
+			if ((n+0)%6 < 3) red = 10*n;
+			if ((n+2)%6 < 3) green = 10*n;
+			if ((n+4)%6 < 3) blue = 10*n;
 		}
 		else if (cmode == 1)
 		{
-			r = g = b = 255;
-			if (n%2) r = 10*n;
-			else g = 10*n;
+			red = green = blue = 255;
+			if (n%2) red = 10*n;
+			else green = 10*n;
 		}
 		else if (cmode == 2)
 		{
-			r = g = b = 255;
-			if (n%2) r = g = 10*n;
-			else b = 10*n;
+			red = green = blue = 255;
+			if (n%2) red = green = 10*n;
+			else blue = 10*n;
 		}
 		else if (cmode == 3)
 		{
-			r = g = b = 10*n;
+			red = green = blue = 10*n;
 		}
 		
 		// Invert colour if selected
 		if (invert_colour)
 		{
-			r = 255 - r;
-			g = 255 - g;
-			b = 255 - b;
+			red = 255 - red;
+			green = 255 - green;
+			blue = 255 - blue;
 		}
-		p[y*W+x] = (a<<24)+(r<<16)+(g<<8)+b;
+		p[y*W+x] = (alpha<<24)+(red<<16)+(green<<8)+blue;
 		if (y>0) p[(H-y)*W+(W-1-x)] = p[y*W+x];
 	}
 }
@@ -280,9 +275,14 @@ void print_card(int print_hard_copy)
 				1900 + t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec);
     fprintf(stderr, "%s\n", filename);
 	
+	// A4 width, height in points, from GhostView manual:
+	const double page_width = 595;
+	const double page_height = 842;
+	const double page_margin = 20.0;
+
 	// Create Cairo surface and context
-	cairo_surface_t* surface = cairo_ps_surface_create(filename, PAGEWIDTH, PAGEHEIGHT);
-	cairo_t *cr = cairo_create(surface);
+	cairo_surface_t* ps_surface = cairo_ps_surface_create(filename, page_width, page_height);
+	cairo_t *cr = cairo_create(ps_surface);
 
 	// Copy fractal image to cairo surface
 	int rowstride, y;
@@ -293,34 +293,50 @@ void print_card(int print_hard_copy)
 	for (y=0 ; y<H ; ++y) memcpy(surface_pixels+(y*rowstride), p+(y*W), W*4);
 	cairo_surface_mark_dirty (fractal_surface);
 
-	double margin = 20.0;
-	cairo_rectangle(cr, margin, margin, PAGEWIDTH-2*margin, 0.5*PAGEHEIGHT - 2*margin);
+	cairo_rectangle(cr, page_margin, page_margin, page_width-2.0*page_margin, 0.5*page_height - 2*page_margin);
 	cairo_clip(cr);
 	cairo_new_path(cr); // path not consumed by clip
-	cairo_translate(cr, PAGEWIDTH/2, PAGEHEIGHT/4);
-	cairo_scale(cr, (0.5*PAGEHEIGHT-2.0*margin)/H, (0.5*PAGEHEIGHT-2.0*margin)/H);
+	cairo_translate(cr, page_width/2.0, page_height/4.0);
+	cairo_scale(cr, (0.5*page_height-2.0*page_margin)/H, (0.5*page_height-2.0*page_margin)/H);
 	cairo_translate(cr, -W/2, -H/2);
 	cairo_set_source_surface (cr, fractal_surface, 0, 0);
 	cairo_paint (cr);
 	
 	// Draw frame
+	const int draw_frame = 0;
+	if (draw_frame)
+	{
+		cairo_identity_matrix (cr);
+		cairo_reset_clip(cr);
+		cairo_set_source_rgb (cr, 0.0, 0.0, 0.0);
+		cairo_set_line_width(cr, 3.0);
+		cairo_rectangle(cr, page_margin, page_margin, page_width-2.0*page_margin, 0.5*page_height - 2.0*page_margin);
+		cairo_stroke(cr);
+		cairo_set_source_rgb (cr, 1.0, 1.0, 1.0);
+		cairo_set_line_width(cr, 1.0);
+		cairo_rectangle(cr, page_margin, page_margin, page_width-2.0*page_margin, 0.5*page_height - 2.0*page_margin);
+		cairo_stroke(cr);
+	}
+
+	// Draw back of card
 	cairo_identity_matrix (cr);
-	cairo_reset_clip(cr);
-	cairo_set_source_rgb (cr, 0.0, 0.0, 0.0);
-	cairo_set_line_width(cr, 3);
-	cairo_rectangle(cr, margin, margin, PAGEWIDTH-2*margin, 0.5*PAGEHEIGHT - 2*margin);
-	cairo_stroke(cr);
-	cairo_set_source_rgb (cr, 1.0, 1.0, 1.0);
-	cairo_set_line_width(cr, 1);
-	cairo_rectangle(cr, margin, margin, PAGEWIDTH-2*margin, 0.5*PAGEHEIGHT - 2*margin);
-	cairo_stroke(cr);
+	cairo_reset_clip (cr);
+	cairo_surface_t *rear_surface = cairo_image_surface_create_from_png ("cardback.png");
+	double png_height = cairo_image_surface_get_height (rear_surface);
+	double png_width = cairo_image_surface_get_width (rear_surface);
+	fprintf(stderr, "PNG width and height: %lf x %lf\n", png_width, png_height);
+	cairo_scale (cr, page_width / png_width, page_width / png_width);
+	cairo_translate (cr, 0, png_height);
+	cairo_set_source_surface (cr, rear_surface, 0, 0);
+	cairo_paint (cr);
+	cairo_surface_destroy(rear_surface);
 
 	// Finish drawing and destroy Cairo surface and context
 	cairo_show_page(cr);
 	cairo_destroy(cr);
 	cairo_surface_destroy(fractal_surface);
-	cairo_surface_flush(surface);
-	cairo_surface_destroy(surface);
+	cairo_surface_flush(ps_surface);
+	cairo_surface_destroy(ps_surface);
 
 	// Print the file
 	if (print_hard_copy) cupsPrintFile(cupsGetDefault(), filename, "cairo PS", 0, NULL);
