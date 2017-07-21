@@ -41,6 +41,7 @@ void generate_fractal (
 		Uint32 *p, int w, int h, double px, complex double centre,
 		complex double a, complex double b, complex double c, complex double d,
 		int cmode, int invert_colour, int reverse_template );
+void update_template(int n, SDL_Renderer *sdlRenderer);
 
 int main(int argc, char *argv[])
 {
@@ -127,6 +128,8 @@ int main(int argc, char *argv[])
 				else if (event.key.keysym.sym == SDLK_q) exiting = 1;
 				else if (event.key.keysym.sym == SDLK_c) {colour_mode = (colour_mode + 1) % colour_modes; printf("Colour mode: %d\n", colour_mode);}
 				else if (event.key.keysym.sym == SDLK_f) {function_mode = (function_mode + 1) % function_modes; printf("Function mode: %d\n", function_mode);}
+				else if (event.key.keysym.sym == SDLK_1) update_template(0, sdlRenderer);
+				else if (event.key.keysym.sym == SDLK_2) update_template(1, sdlRenderer);
 			}
 		}
 		
@@ -345,4 +348,187 @@ void print_card(int print_hard_copy)
 	char command[1024];
 	sprintf(command, "cp %s aaa.ps", filename);
 	system(command);
+}
+
+// Video frame pixels
+#define vw 1280
+#define vh 720
+unsigned char vp[vh][vw][2];
+
+void update_template(int n, SDL_Renderer *sdlRenderer)
+{
+	int mouse_x=0, mouse_y=0;
+	int x1, y1, x2, y2, left, right, top, bottom;
+	x1 = left = vw/4;
+	x2 = right = 3*vw/4;
+	y1 = top = vh/4;
+	y2 = bottom = 3*vh/4;
+
+    int exiting_video=0;
+    int threshold=127, byte_count, x, y;
+
+	// Open SDL window for video
+	SDL_SetRenderDrawColor(sdlRenderer, 0, 0, 0, 255);
+	SDL_RenderClear(sdlRenderer);
+	SDL_RenderPresent(sdlRenderer);
+	
+	SDL_Texture *video_texture = SDL_CreateTexture(sdlRenderer, SDL_PIXELFORMAT_YUY2, SDL_TEXTUREACCESS_STREAMING, vw, vh);
+	
+	SDL_Event event;
+	
+	// Define regions within window for video and histogram
+	SDL_Rect video_rect;
+	video_rect.x = 0;
+	video_rect.y = 0;
+	video_rect.w = vw;
+	video_rect.h = vh;
+	
+    // Open camera via pipe
+    fprintf(stderr, "Opening camera via pipe\n");
+    char pipe_command[1024];
+    sprintf(pipe_command, "ffmpeg -video_size %dx%d -i /dev/video1 -f image2pipe -vcodec rawvideo - < /dev/null", vw, vh);
+    fprintf(stderr, "Opening pipe:\n%s\n", pipe_command);
+    FILE *cam = popen(pipe_command, "r");
+    
+	while (!exiting_video)
+	{
+		// Process any pending user input events
+		while (!exiting_video && SDL_PollEvent(&event))
+		{
+			if (event.type == SDL_KEYDOWN)
+			{
+				if (event.key.keysym.sym == SDLK_UP) threshold += 5;
+				else if (event.key.keysym.sym == SDLK_DOWN) threshold -= 5;
+				else if (event.key.keysym.sym == SDLK_ESCAPE) exiting_video = 1;
+				else if (event.key.keysym.sym == SDLK_q) exiting_video = 1;
+				else if (event.key.keysym.sym == SDLK_s)
+				{
+					// Write last frame to file
+					// NEEDS ADJUSTMENT FOR YUY2 rather than RGB!!!
+					fprintf(stderr, "Writing frame to PPM file\n");
+					FILE *f = fopen("snapshot.ppm", "w");
+					fprintf(f, "P6\n%d %d\n255\n", W, H);
+					fwrite(p, 3*640, 480, f);
+					fclose(f);
+				}
+			}
+			else if (event.type == SDL_MOUSEBUTTONDOWN)
+			{
+				x1 = event.button.x;
+				y1 = event.button.y;
+			}
+			else if (event.type == SDL_MOUSEMOTION)
+			{
+				mouse_x = event.button.x;
+				mouse_y = event.button.y;
+				
+				if (event.motion.state & SDL_BUTTON_LMASK)
+				{
+					x2 = mouse_x;
+					y2 = mouse_y;
+				}
+			}
+			
+			// Set boundaries
+			left   = x1 < x2 ? x1 : x2;
+			right  = x1 < x2 ? x2 : x1;
+			top    = y1 < y2 ? y1 : y2;
+			bottom = y1 < y2 ? y2 : y1;
+		}
+		
+        // Read a YUY2 frame from the input pipe into the buffer
+        byte_count = fread(vp, 1, vh*vw*2, cam);
+        if (byte_count != vh*vw*2)
+        {
+            fprintf(stderr, "Got wrong number of bytes from pipe. Exiting video...\n");
+            return;
+        }
+        
+        // Scan edge pixels to identify background colour range
+        int Y, U, V;
+        int Ymin=255, Ymax=0;
+        int Umin=255, Umax=0;
+        int Vmin=255, Vmax=0;
+        
+        for (y=top ; y<bottom ; ++y) for (x=left ; x<right ; ++x)
+        {
+			if (x==left+2 && y>=top+2 && y<bottom-2) x = right-2;
+			
+			Y = vp[y][x][0];
+			U = (x%2) ? vp[y][x-1][1] : vp[y][x][1];
+			V = (x%2) ? vp[y][x][1] : vp[y][x+1][1];
+			
+			if (Y<Ymin) Ymin = Y;
+			if (Y>Ymax) Ymax = Y;
+			if (U<Umin) Umin = U;
+			if (U>Umax) Umax = U;
+			if (V<Vmin) Vmin = V;
+			if (V>Vmax) Vmax = V;
+		}
+
+		int tol = 20;
+        Ymin-=tol; Ymax+=tol;
+        Umin-=tol; Umax+=tol;
+        Vmin-=tol; Vmax+=tol;
+		
+        // Process this frame
+        for (y=top ; y<bottom ; ++y) for (x=left ; x<right ; ++x)
+        {
+			Y = vp[y][x][0];
+			U = (x%2) ? vp[y][x-1][1] : vp[y][x][1];
+			V = (x%2) ? vp[y][x][1] : vp[y][x+1][1];
+			
+            if (Y>Ymin && Y<Ymax && U>Umin && U<Umax && V>Vmin && V<Vmax)
+            {
+				vp[y][x][0] = 255;
+				vp[y][x][1] = 255;
+			}
+			else
+            {
+				vp[y][x][0] = 0;
+				vp[y][x][1] = 0;
+			}
+        }
+        
+        // Draw mouse crosshairs and boundaries of analysis region
+        for (y=0 ; y<vh ; ++y)
+        {
+			// crosshairs
+			vp[y][mouse_x][0] = 0;
+			vp[y][mouse_x][1] = 127;
+			
+			// left and right boundaries of analysis region
+			vp[y][left][0] = 255;
+			vp[y][left][1] = 127;
+			vp[y][right][0] = 255;
+			vp[y][right][1] = 127;
+		}
+		
+        for (x=0 ; x<vw ; ++x)
+        {
+			// crosshairs
+			vp[mouse_y][x][0] = 0;
+			vp[mouse_y][x][1] = 127;
+			
+			// top and bottom boundaries of analysis region
+			vp[top][x][0] = 255;
+			vp[top][x][1] = 127;
+			vp[bottom][x][0] = 255;
+			vp[bottom][x][1] = 127;
+		}
+		
+		// Draw frame
+		SDL_UpdateTexture(video_texture, NULL, vp, vw*2);
+		SDL_RenderClear(sdlRenderer);
+		SDL_RenderCopy(sdlRenderer, video_texture, NULL, &video_rect);
+		SDL_RenderPresent(sdlRenderer);
+    }
+	
+    // Close camera pipe
+    fprintf(stderr, "Closing camera pipe\n");
+    fflush(cam);
+    fprintf(stderr, "ffmpeg pipe exit value is %d\n", pclose(cam));
+    
+	// Destroy video-related SDL objects
+    SDL_DestroyTexture(video_texture);
 }

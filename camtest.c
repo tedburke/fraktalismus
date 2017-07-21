@@ -10,13 +10,12 @@
 #include <stdio.h>
 #include <SDL.h>
 
-#define W 640
-#define H 480
+#define W 1280
+#define H 720
 
 #define HW 640
 #define HH 300
 
-//Uint32 p[H*W/2];
 unsigned char p[H][W][2];
 unsigned char q[H][W][2];
 unsigned char h[H][W][4];
@@ -29,11 +28,11 @@ int left=W/4, right=3*W/4, top=H/4, bottom=3*H/4;
 
 int main()
 {
-    int n=0, exiting=0, threshold=127, byte_count, x, y;
+    int exiting=0, threshold=127, byte_count, x, y;
 
 	// Initialise SDL
 	SDL_Init(SDL_INIT_EVERYTHING);
-	SDL_Window *sdlWindow = SDL_CreateWindow("Camtest", 120, 100, W, 2*H, 0);
+	SDL_Window *sdlWindow = SDL_CreateWindow("Camtest", 160, 100, W, 2*H, 0);
 	SDL_Renderer *sdlRenderer = SDL_CreateRenderer(sdlWindow, 0, 0);
 	SDL_SetRenderDrawColor(sdlRenderer, 0, 0, 0, 255);
 	SDL_RenderClear(sdlRenderer);
@@ -59,8 +58,9 @@ int main()
 		
     // Open camera via pipe
     fprintf(stderr, "Opening camera via pipe\n");
-    //FILE *cam = popen("ffmpeg -i /dev/video1 -f image2pipe -vcodec rawvideo -pix_fmt rgb24 - < /dev/null", "r");
-    FILE *cam = popen("ffmpeg -i /dev/video1 -f image2pipe -vcodec rawvideo - < /dev/null", "r");
+    //ORIGINAL RGB version: FILE *cam = popen("ffmpeg -i /dev/video1 -f image2pipe -vcodec rawvideo -pix_fmt rgb24 - < /dev/null", "r");
+    // Original YUYV version at 640x480: FILE *cam = popen("ffmpeg -i /dev/video1 -f image2pipe -vcodec rawvideo - < /dev/null", "r");
+    FILE *cam = popen("ffmpeg -video_size 1280x720 -i /dev/video1 -f image2pipe -vcodec rawvideo - < /dev/null", "r");
     
 	while (!exiting)
 	{
@@ -120,9 +120,12 @@ int main()
 			U = (x%2) ? p[y][x-1][1] : p[y][x][1];
 			V = (x%2) ? p[y][x][1] : p[y][x+1][1];
 			
-			if (Y<Ymin) Ymin = Y; if (Y>Ymax) Ymax = Y;
-			if (U<Umin) Umin = U; if (U>Umax) Umax = U;
-			if (V<Vmin) Vmin = V; if (V>Vmax) Vmax = V;
+			if (Y<Ymin) Ymin = Y;
+			if (Y>Ymax) Ymax = Y;
+			if (U<Umin) Umin = U;
+			if (U>Umax) Umax = U;
+			if (V<Vmin) Vmin = V;
+			if (V>Vmax) Vmax = V;
 		}
 
 		int tol = 20;
