@@ -33,7 +33,7 @@ Uint32 p[H*W];
 // Two simple drawn shapes that seed the fractal creation
 #define TH 1024
 #define TW 1024
-unsigned char template[2][TH][TW][4] = {0}; // ARGB pixels
+unsigned char template[2][TH][TW][4]; // ARGB pixels
 
 // Function prototypes
 void print_card(int print_hard_copy);
@@ -48,7 +48,8 @@ void update_template(SDL_Renderer *sdlRenderer);
 // Main function
 int main(int argc, char *argv[])
 {
-	int n, m;
+	//int n, x, y;
+	int x, y;
 	complex double a, b, c, d;
 	
 	double scaling_factor = 0.005;
@@ -58,28 +59,19 @@ int main(int argc, char *argv[])
 	int function_mode = 0, function_modes = 4;
 
 	int exiting = 0;
-	char buffer[1024];
+	//char buffer[1024];
 	
-	// Load template images from file
-	if (argc > 1)
+	// Initialise templates with flat colours
+	for (y=0 ; y<TH ; ++y) for (x=0 ; x<TW ; ++x)
 	{
-		FILE* f;
-		for (n=0 ; n<2 ; ++n)
-		{
-			f = fopen(argv[n+1], "r");
-			if (f == NULL)
-			{
-				fprintf(stderr, "Error opening template image file\n");
-				exit(1);
-			}
-			for (m=0 ; m<3 ; ++m)
-			{
-				fscanf(f, "%[^\n]\n", buffer);
-				if (buffer[0]=='#') m--;
-			}
-			fread(template[n], TW, TH, f);
-			fclose(f);
-		}
+		template[0][y][x][0] = 255; // blue
+		template[0][y][x][1] = 255; // green
+		template[0][y][x][2] = 255; // red
+		template[0][y][x][3] = 255; // alpha
+		template[1][y][x][0] = 0;   // blue		
+		template[1][y][x][1] = 0;   // green
+		template[1][y][x][2] = 0;   // red
+		template[1][y][x][3] = 255; // alpha
 	}
 	
 	// Initialise SDL
@@ -139,7 +131,6 @@ int main(int argc, char *argv[])
 		}
 		
 		// Get mouse position
-		int x, y;
 		SDL_GetMouseState(&x, &y);
 		a = b = c = d = 1;
 		
@@ -198,7 +189,7 @@ int main(int argc, char *argv[])
 void generate_fractal(Uint32 *p, int w, int h, double px, complex double centre, complex double a, complex double b, complex double c, complex double d, int cmode, int invert_colour, int reverse_template)
 {
 	int n, x, y;
-	complex double z, zz; //, zzz;
+	complex double z, zz;
 	Uint32 tx, ty, tn, txx, tyy;
 	unsigned char red, green, blue, alpha;
 
@@ -206,7 +197,7 @@ void generate_fractal(Uint32 *p, int w, int h, double px, complex double centre,
 	start_time = SDL_GetTicks();
 	
 	// Generate fractal image
-	for (y=0 ; y<=H/2 ; ++y) for (x=0 ; x<W ; ++x)
+	for (y=0 ; y<=h/2 ; ++y) for (x=0 ; x<w ; ++x)
 	{
 		if ((SDL_GetTicks() - start_time) > timeout) return;
 		
@@ -222,8 +213,8 @@ void generate_fractal(Uint32 *p, int w, int h, double px, complex double centre,
 			tn = ((txx >> 10)+(tyy >> 10))%2;
 			if ((tx!=txx || ty!=tyy) && n > 1)
 			{
-				if (reverse_template == 1 && template[tn][ty][tx][0] > 127) break;
-				if (reverse_template == 0 && template[tn][ty][tx][0] < 127) break;
+				if (reverse_template == 1 && template[tn][ty][tx][3] < 127) break;
+				if (reverse_template == 0 && template[tn][ty][tx][3] > 127) break;
 			}
 			
 			// Iterate z
@@ -235,18 +226,19 @@ void generate_fractal(Uint32 *p, int w, int h, double px, complex double centre,
 		alpha = 255;
 		red = green = blue = 0;
 		
+		
 		if (cmode == 0)
 		{
-			red = green = blue = 255;
-			if ((n+0)%6 < 3) red = 10*n;
-			if ((n+2)%6 < 3) green = 10*n;
-			if ((n+4)%6 < 3) blue = 10*n;
+			blue = n < 10 ? 25*n : 255;
+			red = n<10 ? 0 : 255*(n-10.0)/15.0;
+			green = red;
 		}
 		else if (cmode == 1)
 		{
 			red = green = blue = 255;
-			if (n%2) red = 10*n;
-			else green = 10*n;
+			if ((n+0)%3 == 0) {red = 10*n;}
+			if ((n+1)%3 == 0) {green = 10*n;}
+			if ((n+2)%3 == 0) {blue = 10*n;}
 		}
 		else if (cmode == 2)
 		{
@@ -260,9 +252,9 @@ void generate_fractal(Uint32 *p, int w, int h, double px, complex double centre,
 		}
 		else if (cmode == 4)
 		{
-			red   = template[tn][ty][tx][1] + (n/25.0)*(255-template[tn][ty][tx][2]);
-			green = template[tn][ty][tx][2] + (n/25.0)*(255-template[tn][ty][tx][1]);
-			blue  = template[tn][ty][tx][3] + (n/25.0)*(255-template[tn][ty][tx][0]);
+			red   = template[tn][ty][tx][2] + (n/25.0)*(255-template[tn][ty][tx][2]);
+			green = template[tn][ty][tx][1] + (n/25.0)*(255-template[tn][ty][tx][1]);
+			blue  = template[tn][ty][tx][0] + (n/25.0)*(255-template[tn][ty][tx][0]);
 		}
 		
 		// Invert colour if selected
@@ -273,10 +265,17 @@ void generate_fractal(Uint32 *p, int w, int h, double px, complex double centre,
 			blue = 255 - blue;
 		}
 
-		p[y*W+x] = (alpha<<24)+(red<<16)+(green<<8)+blue;
-		p[y*W+x] = (alpha<<24)+(red<<16)+(green<<8)+blue;
+		p[y*w+x] = (alpha<<24)+(red<<16)+(green<<8)+blue;
 		
 		if (y>0) p[(H-y)*W+(W-1-x)] = p[y*W+x];
+	}
+	
+	// Colour correction for centre points
+	if (d==0)
+	{
+		y = h/2; x = w/2;
+		p[y*w+x-1] = p[(y+1)*w+x-1];
+		p[y*w+x]   = p[(y+1)*w+x];
 	}
 }
 
@@ -394,7 +393,7 @@ void print_card(int print_hard_copy)
 	// Make a copy of the output file for debugging
 	char command[1024];
 	sprintf(command, "cp %s aaa.ps", filename);
-	system(command);
+	if (system(command)) fprintf(stderr, "Error copying file to aaa.ps\n");
 }
 
 // Video frame pixels
@@ -537,17 +536,17 @@ void update_template(SDL_Renderer *sdlRenderer)
 				if (red < 0) red = 0;
 				if (red > 255) red = 255;
 				
-				template[n][ty][tx][1] = red;
-				template[n][ty][tx][2] = green;
-				template[n][ty][tx][3] = blue;
+				template[n][ty][tx][2] = red;
+				template[n][ty][tx][1] = green;
+				template[n][ty][tx][0] = blue;
 				
 				if (Y>Ymin && Y<Ymax && U>Umin && U<Umax && V>Vmin && V<Vmax)
 				{
-					template[n][ty][tx][0] = 255;
+					template[n][ty][tx][3] = 0;
 				}
 				else
 				{
-					template[n][ty][tx][0] = 0;
+					template[n][ty][tx][3] = 255;
 				}
 			}
 				
