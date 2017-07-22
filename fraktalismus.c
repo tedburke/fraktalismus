@@ -411,6 +411,7 @@ void update_template(SDL_Renderer *sdlRenderer)
 	y2 = bottom = 3*vh/4;
 	
 	static int tol = 20; // colour matching tolerance
+	static int exclude_lower_edge = 0; // calibrate background colour using top, left and right only
 
 	int n = -1; // number of template to update (will be set to 0 or 1 if key is pressed)
     int exiting_video=0;
@@ -447,12 +448,13 @@ void update_template(SDL_Renderer *sdlRenderer)
 		{
 			if (event.type == SDL_KEYDOWN)
 			{
-				if (event.key.keysym.sym == SDLK_UP) tol += 5;
-				else if (event.key.keysym.sym == SDLK_DOWN) tol -= 5;
+				if (event.key.keysym.sym == SDLK_UP) tol += 1;
+				else if (event.key.keysym.sym == SDLK_DOWN) tol -= 1;
 				else if (event.key.keysym.sym == SDLK_ESCAPE) exiting_video = 1;
 				else if (event.key.keysym.sym == SDLK_q) exiting_video = 1;
 				else if (event.key.keysym.sym == SDLK_1) n = 0;
 				else if (event.key.keysym.sym == SDLK_2) n = 1;
+				else if (event.key.keysym.sym == SDLK_e) exclude_lower_edge = 1 - exclude_lower_edge;
 			}
 			else if (event.type == SDL_MOUSEBUTTONDOWN)
 			{
@@ -469,6 +471,12 @@ void update_template(SDL_Renderer *sdlRenderer)
 					x2 = mouse_x;
 					y2 = mouse_y;
 				}
+			}
+			
+			// Print tolerance and edge flag each time a key is pressed
+			if (event.type == SDL_KEYDOWN)
+			{
+				fprintf(stderr, "tol = %d, exclude_lower_edge = %d\n", tol, exclude_lower_edge);
 			}
 			
 			// Set boundaries
@@ -494,7 +502,7 @@ void update_template(SDL_Renderer *sdlRenderer)
         
         for (vy=top ; vy<bottom ; ++vy) for (vx=left ; vx<right ; ++vx)
         {
-			if (vx==left+2 && vy>=top+2 && vy<bottom-2) vx = right-2;
+			if (vx==left+2 && vy>=top+2 && vy<bottom-(2*(1-exclude_lower_edge))) vx = right-2;
 			
 			Y = vp[vy][vx][0];
 			U = (vx%2) ? vp[vy][vx-1][1] : vp[vy][vx][1];
