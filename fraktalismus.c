@@ -15,6 +15,7 @@
 //
 
 #include <stdio.h>      // For file i/o, debug printing, etc.
+#include <sys/stat.h>   // For checking if 'prints' directory exists
 #include <complex.h>    // Complex arithmetic for fractal generation
 #include <SDL.h>        // For screen rendering
 #include <time.h>       // For naming print files with current time
@@ -279,7 +280,18 @@ void generate_fractal(Uint32 *p, int w, int h, double px, complex double centre,
 
 void print_card(int print_hard_copy)
 {
-    // Render date and time as string for filename of postscript file
+	// Check if "prints" directory exists. If not, create it.
+	struct stat statstruct = {0};
+	stat("prints", &statstruct);
+	if (statstruct.st_mode & S_IFDIR) fprintf(stderr, "prints directory exists\n");
+	else
+	{
+		fprintf(stderr, "Creating 'prints' directory...");
+		mkdir("prints", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+		fprintf(stderr, "Done\n");
+	}
+  
+	// Render date and time as string for filename of postscript file
     char filename[1024];
     time_t rawtime;
     struct tm t;
